@@ -1,0 +1,4 @@
+flask
+flask_compress
+py_essentials
+tarfile
