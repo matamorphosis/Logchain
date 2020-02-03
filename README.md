@@ -1,5 +1,5 @@
 # Logchain
-![Results](/lib/Logo.png)
+![Results](/lib/logo.png)
 
 Logchain is a log backup tool that uses distributed ledger technology (DLT, also commonly known as blockchain) for integrity purposes. This solution is compiled of three programs:
  - Ledger API
