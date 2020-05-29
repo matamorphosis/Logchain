@@ -1,4 +1,8 @@
+**If you're enjoying this tool, feel free to buy me a cup of coffee :)**  
+[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/matamorphosis?locale.x=en_AU)
+
 # Logchain
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)  
 ![Results](/lib/logo.png)
 
 Logchain is a log backup tool that uses distributed ledger technology (DLT, also commonly known as blockchain) for integrity purposes. This solution is compiled of three programs:
