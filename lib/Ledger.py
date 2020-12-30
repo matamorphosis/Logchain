@@ -1,6 +1,6 @@
 #!/usr/bin/python3
-# Logchain API Version 1.0
-import hashlib, json, requests, os, sys, logging, jwt, ssl, psycopg2, secrets, socket
+# Logchain API Ledger Version 1.0
+import hashlib, json, requests, pathlib, os, sys, logging, jwt, ssl, psycopg2, secrets, socket
 from time import time
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -10,11 +10,13 @@ from flask_compress import Compress
 from signal import signal, SIGINT
 from datetime import datetime, timedelta
 
+def Date():
+    return str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
 def Load_SIEM_Chain_Configuration():
 
     try:
-        logging.info(str(datetime.now()) + " Loading web application's configuration data.")
+        logging.info(str(Date()) + " Loading web application's configuration data.")
 
         with open(Configuration_File) as JSON_File:
             Configuration_Data = json.load(JSON_File)
@@ -26,12 +28,12 @@ def Load_SIEM_Chain_Configuration():
                 return Configuration_Data["web-app"]
 
     except Exception as e:
-        app.logger.fatal(str(datetime.now()) + " " + str(e))
+        app.logger.fatal(f"{str(Date())} {str(e)}")
         sys.exit()
 
 
 def Load_Main_Database():
-    logging.info(str(datetime.now()) + " Loading Scrummage's Main Database configuration data.")
+    logging.info(str(Date()) + " Loading Scrummage's Main Database configuration data.")
 
     try:
         with open(Configuration_File) as JSON_File:
@@ -43,7 +45,7 @@ def Load_Main_Database():
             DB_Database = Configuration_Data['postgresql']['database']
 
     except Exception as e:
-        app.logger.fatal(f"{str(datetime.now())} Failed to load configuration file. {e}")
+        app.logger.fatal(f"{str(Date())} Failed to load configuration file. {str(e)}")
         sys.exit()
 
     try:
@@ -56,7 +58,7 @@ def Load_Main_Database():
             return None
 
     except Exception as e:
-        app.logger.fatal(f"{str(datetime.now())} Failed to connect to database. {e}")
+        app.logger.fatal(f"{str(Date())} Failed to connect to database. {e}")
         sys.exit()
 
 
@@ -78,7 +80,7 @@ def API_Generation(**kwargs):
         return JWT.decode('utf-8')
 
     except Exception as e:
-        logging.warning(f"{str(datetime.now())} Failed to generate API token. {e}")
+        logging.warning(f"{str(Date())} Failed to generate API token. {e}")
 
 
 def API_Verification(auth_token):
@@ -439,45 +441,62 @@ def api_init():
 
 if __name__ == '__main__':
 
-    def handler(signal_received, frame):
-        print('[i] CTRL-C detected. Shutting program down.')
-        sys.exit()
-
-
-    signal(SIGINT, handler)
-    Configuration_File = os.path.join(os.path.dirname(os.path.realpath('__file__')), 'config/ledger/config.json')
-    formatter = logging.Formatter("[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s")
-    handler = RotatingFileHandler('Logchain.log', maxBytes=10000, backupCount=5)
-    handler.setLevel(logging.INFO)
-    handler.setFormatter(formatter)
-    app.logger.addHandler(handler)
-    App_Details = Load_SIEM_Chain_Configuration()
-    app.secret_key = os.urandom(24)
-    Compress(app)
-    API_Secret = App_Details["api-secret"]
-    API_Validity_Limit = App_Details["api-validity-minutes"]
-    Connection = Load_Main_Database()
-    Cursor = Connection.cursor()
-    PSQL_Select_Query = 'SELECT * FROM nodes WHERE node_fqdn = %s AND node_type = %s'
-    Cursor.execute(PSQL_Select_Query, (socket.getfqdn(), "Ledger",))
-    Results = Cursor.fetchone()
-
-    if not Results:
-        logging.info(f"{str(datetime.now())} Node initialising for the first time.")
-        Node_Identifier = str(uuid4()).replace('-', '')
-        PSQL_Insert_Query = 'INSERT INTO nodes (node_id, node_fqdn, node_type, created_at) VALUES (%s,%s,%s,%s)'
-        Cursor.execute(PSQL_Insert_Query, (Node_Identifier, socket.getfqdn(), "Ledger", datetime.now()))
-        Connection.commit()
-
-    else:
-        Node_Identifier = Results[0]
-
     try:
-        context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-        context.load_cert_chain(certfile=App_Details["certificate-file"], keyfile=App_Details["key-file"])
 
-    except:
-        app.logger.fatal(str(datetime.now()) + ' Error initiating SSL.')
-        sys.exit()
+        def handler(signal_received, frame):
+            print('[i] CTRL-C detected. Shutting program down.')
+            sys.exit()
 
-    app.run(debug=App_Details["debug"], host=App_Details["host"], port=App_Details["port"], threaded=True, ssl_context=context)
+        try:
+            Logchain_Working_Directory = pathlib.Path(__file__).parent.absolute()
+
+            if str(Logchain_Working_Directory) != str(os.getcwd()):
+                print(f"[i] Logchain Ledger has been called from outside the Logchain directory, changing the working directory to {str(Logchain_Working_Directory)}.")
+                os.chdir(Logchain_Working_Directory)
+
+                if str(Logchain_Working_Directory) != str(os.getcwd()):
+                    sys.exit(f'{str(Date())} Error setting the working directory.')
+
+        except:
+            sys.exit(f'{str(Date())} Error setting the working directory.')
+
+        signal(SIGINT, handler)
+        Configuration_File = os.path.join(os.path.dirname(os.path.realpath('__file__')), 'config/ledger/config.json')
+        formatter = logging.Formatter("[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s")
+        handler = RotatingFileHandler('Logchain.log', maxBytes=10000, backupCount=5)
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(formatter)
+        app.logger.addHandler(handler)
+        App_Details = Load_SIEM_Chain_Configuration()
+        app.secret_key = os.urandom(24)
+        Compress(app)
+        API_Secret = App_Details["api-secret"]
+        API_Validity_Limit = App_Details["api-validity-minutes"]
+        Connection = Load_Main_Database()
+        Cursor = Connection.cursor()
+        PSQL_Select_Query = 'SELECT * FROM nodes WHERE node_fqdn = %s AND node_type = %s'
+        Cursor.execute(PSQL_Select_Query, (socket.getfqdn(), "Ledger",))
+        Results = Cursor.fetchone()
+
+        if not Results:
+            logging.info(f"{str(Date())} Node initialising for the first time.")
+            Node_Identifier = str(uuid4()).replace('-', '')
+            PSQL_Insert_Query = 'INSERT INTO nodes (node_id, node_fqdn, node_type, created_at) VALUES (%s,%s,%s,%s)'
+            Cursor.execute(PSQL_Insert_Query, (Node_Identifier, socket.getfqdn(), "Ledger", datetime.now()))
+            Connection.commit()
+
+        else:
+            Node_Identifier = Results[0]
+
+        try:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+            context.load_cert_chain(certfile=App_Details["certificate-file"], keyfile=App_Details["key-file"])
+
+        except:
+            app.logger.fatal(f'{str(Date())} Error initiating SSL.')
+            sys.exit()
+
+        app.run(debug=App_Details["debug"], host=App_Details["host"], port=App_Details["port"], threaded=True, ssl_context=context)
+
+    except Exception as e:
+        exit(str(e))

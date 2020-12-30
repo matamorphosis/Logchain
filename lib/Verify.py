@@ -1,13 +1,34 @@
 #!/usr/bin/python3
 # Logchain Verification Agent Version 1.0
-import os, sys, argparse, requests, threading, json, tarfile, logging, shutil
+import os, sys, pathlib, argparse, requests, threading, json, tarfile, logging, shutil, time
 from datetime import datetime
 from py_essentials import hashing as hs
+
+def Date():
+    return str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+def Load_Agent_Configuration():
+
+    try:
+        logging.info(f"{str(Date())} Loading Agent configuration data.")
+
+        with open(Configuration_File) as JSON_File:
+            Configuration_Data = json.load(JSON_File)
+
+            if Configuration_Data['agent']['source_log_directories'] and Configuration_Data['agent']['target_backup_directory']:
+                return Configuration_Data['agent']
+
+            else:
+                return None
+
+    except Exception as e:
+        logging.fatal(f"{str(Date())} {str(e)}")
+        sys.exit()
 
 def Load_Logchain_API_Configuration():
 
     try:
-        logging.info(f"{str(datetime.now())} Loading API configuration data.")
+        logging.info(f"{str(Date())} Loading API configuration data.")
 
         with open(Configuration_File) as JSON_File:
             Configuration_Data = json.load(JSON_File)
@@ -19,7 +40,7 @@ def Load_Logchain_API_Configuration():
                 return None
 
     except Exception as e:
-        logging.warning(f"{str(datetime.now())} {str(e)}.")
+        logging.warning(f"{str(Date())} {str(e)}.")
         sys.exit()
 
 def API_Check(File, Full_File, API_Data, Backup_File):
@@ -56,16 +77,16 @@ def API_Check(File, Full_File, API_Data, Backup_File):
     Result = Check(File, Full_File, API_Data, Backup_File)
 
     if Result == 2:
-        logging.info(f"{str(datetime.now())} Successfully verified {File} against the Logchain ledger.")
+        logging.info(f"{str(Date())} Successfully verified {File} against the Logchain ledger.")
 
     elif Result == 1:
-        logging.warning(f"{str(datetime.now())} {File} was found in the Logchain ledger but the checksum did not match. This backup appears to have been tampered with.")
+        logging.warning(f"{str(Date())} {File} was found in the Logchain ledger but the checksum did not match. This backup appears to have been tampered with.")
 
     elif Result == 0:
-        logging.info(f"{str(datetime.now())} {File} was not found in the Logchain ledger, if you are sure this backup was created by the Logchain Backup Agent, then it could still be in the current block which has not been mined yet.")
+        logging.info(f"{str(Date())} {File} was not found in the Logchain ledger, if you are sure this backup was created by the Logchain Backup Agent, then it could still be in the current block which has not been mined yet.")
 
     else:
-        logging.warning(f"{str(datetime.now())} Unable to get valid response from ledger.")
+        logging.warning(f"{str(Date())} Unable to get valid response from ledger.")
 
 def Extract(File, Directory):
 
@@ -78,9 +99,50 @@ def Extract(File, Directory):
     except:
         return False
 
+def Check_Backup(Tar_File):
+    API_Data = Load_Logchain_API_Configuration()
+
+    if Tar_File.endswith('.tar.gz'):
+        print(Tar_File)
+        Temp_Directory = '/tmp/Logchain/verify'
+
+        if os.path.exists(Temp_Directory):
+            shutil.rmtree(Temp_Directory)
+
+        os.makedirs(Temp_Directory)
+        Decompressed = Extract(Tar_File, Temp_Directory)
+
+        if Decompressed:
+
+            for File in os.listdir(Temp_Directory):
+                Full_File = Temp_Directory + "/" + File
+                Thread = threading.Thread(target=API_Check, args=(File, Full_File, API_Data, Tar_File))
+                Thread.start()
+
+        else:
+            logging.warning(f"{str(Date())} Failed to decompress the provided file.")
+
+    else:
+        logging.warning(f"{str(Date())} Please provide a valid tar file with gzip compression (.tar.gz file).")
+        sys.exit()
+
 if __name__ == '__main__':
 
     try:
+
+        try:
+            Logchain_Working_Directory = pathlib.Path(__file__).parent.absolute()
+
+            if str(Logchain_Working_Directory) != str(os.getcwd()):
+                print(f"[i] Logchain Verify has been called from outside the Logchain directory, changing the working directory to {str(Logchain_Working_Directory)}.")
+                os.chdir(Logchain_Working_Directory)
+
+                if str(Logchain_Working_Directory) != str(os.getcwd()):
+                    sys.exit(f'{str(Date())} Error setting the working directory.')
+
+        except:
+            sys.exit(f'{str(Date())} Error setting the working directory.')
+
         logging.basicConfig()
         logging.getLogger().setLevel(logging.INFO)
         Configuration_File = os.path.join(os.path.dirname(os.path.realpath('__file__')), 'config/agent/config.json')
@@ -89,36 +151,25 @@ if __name__ == '__main__':
         Arguments = Parser.parse_args()
 
         if Arguments.tarfile:
-            API_Data = Load_Logchain_API_Configuration()
 
-            if Arguments.tarfile.endswith('.tar.gz'):
-                Temp_Directory = '/tmp/Logchain/verify'
-
-                if os.path.exists(Temp_Directory):
-                    shutil.rmtree(Temp_Directory)
-
-                os.makedirs(Temp_Directory)
-                Decompressed = Extract(Arguments.tarfile, Temp_Directory)
-
-                if Decompressed:
-
-                    for File in os.listdir(Temp_Directory):
-                        Full_File = Temp_Directory + "/" + File
-                        Thread = threading.Thread(target=API_Check, args=(File, Full_File, API_Data, Arguments.tarfile))
-                        Thread.start()
-
-                else:
-                    logging.warning(f"{str(datetime.now())} Failed to decompress the provided file.")
-                    sys.exit()
+            if Arguments.tarfile != "*":
+                Check_Backup(Arguments.tarfile)
 
             else:
-                logging.warning(f"{str(datetime.now())} Please provide a valid tar file with gzip compression (.tar.gz file).")
-                sys.exit()
+                Config_Data = Load_Agent_Configuration()
+
+                if Config_Data:
+
+                    for File in os.listdir(Config_Data['target_backup_directory']):
+                        Complete_File = os.path.join(Config_Data['target_backup_directory'], File)
+                        print(Complete_File)
+                        Check_Backup(Complete_File)
+                        time.sleep(2)
 
         else:
-            logging.warning(f"{str(datetime.now())} No arguments supplied.")
+            logging.warning(f"{str(Date())} No arguments supplied.")
             sys.exit()
 
     except Exception as e:
-        logging.warning(f"{str(datetime.now())} {str(e)}.")
+        logging.warning(f"{str(Date())} {str(e)}.")
         sys.exit()

@@ -1,15 +1,18 @@
 #!/usr/bin/python3
 # Logchain Backup Agent Version 1.0
-import os, shutil, sys, threading, logging, json, tarfile, requests, psycopg2, socket
+import os, pathlib, shutil, sys, threading, logging, json, tarfile, requests, psycopg2, socket
 from datetime import datetime
 from py_essentials import hashing as hs
 from distutils.dir_util import copy_tree
 from uuid import uuid4
 
+def Date():
+    return str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
 def Load_Agent_Configuration():
 
     try:
-        logging.info(f"{str(datetime.now())} Loading Agent configuration data.")
+        logging.info(f"{str(Date())} Loading Agent configuration data.")
 
         with open(Configuration_File) as JSON_File:
             Configuration_Data = json.load(JSON_File)
@@ -21,13 +24,13 @@ def Load_Agent_Configuration():
                 return None
 
     except Exception as e:
-        logging.warning(f"{str(datetime.now())} {str(e)}")
+        logging.fatal(f"{str(Date())} {str(e)}")
         sys.exit()
 
 def Load_Logchain_API_Configuration():
 
     try:
-        logging.info(f"{str(datetime.now())} Loading API configuration data.")
+        logging.info(f"{str(Date())} Loading API configuration data.")
 
         with open(Configuration_File) as JSON_File:
             Configuration_Data = json.load(JSON_File)
@@ -39,11 +42,11 @@ def Load_Logchain_API_Configuration():
                 return None
 
     except Exception as e:
-        logging.warning(f"{str(datetime.now())} {str(e)}.")
+        logging.fatal(f"{str(Date())} {str(e)}.")
         sys.exit()
 
 def Load_Main_Database():
-    logging.info(str(datetime.now()) + " Loading Scrummage's Main Database configuration data.")
+    logging.info(str(Date()) + " Loading Scrummage's Main Database configuration data.")
 
     try:
         with open(Configuration_File) as JSON_File:
@@ -55,7 +58,8 @@ def Load_Main_Database():
             DB_Database = Configuration_Data['postgresql']['database']
 
     except Exception as e:
-        logging.warning(f"{str(datetime.now())} Failed to load configuration file. {e}")
+        logging.fatal(f"{str(Date())} Failed to load configuration file. {e}")
+        sys.exit()
 
     try:
         DB_Connection = psycopg2.connect(user=DB_Username, password=DB_Password, host=DB_Host, port=DB_Port, database=DB_Database)
@@ -67,20 +71,26 @@ def Load_Main_Database():
             return None
 
     except Exception as e:
-        logging.warning(f"{str(datetime.now())} Failed to connect to database. {e}")
+        logging.fatal(f"{str(Date())} Failed to connect to database. {e}")
         sys.exit()
 
 def Add_to_SIEMChain_Ledger(File_Hash, API_Data, File, Backup_File):
     PSQL_Select_Query = 'SELECT * FROM api'
     Cursor.execute(PSQL_Select_Query)
     Results = Cursor.fetchone()
-    Host = API_Data['host'] + ':' + str(int(API_Data['port'])) + '/transactions/new'
-    Headers = {'Authorization': f"Bearer {Results[0]}", 'content-type': 'application/json'}
-    Data = {"sender": Node_Identifier, "data_hash": File_Hash, "log_file": File, "backup": Backup_File}
-    Response = requests.post(Host, data=json.dumps(Data), headers=Headers, verify=API_Data['verify_ssl']).text
 
-    if 'message' in json.loads(Response):
-        logging.info(f"{str(datetime.now())} API Response: {json.loads(Response)['message']}")
+    if Results:
+        Host = API_Data['host'] + ':' + str(int(API_Data['port'])) + '/transactions/new'
+        Headers = {'Authorization': f"Bearer {Results[0]}", 'content-type': 'application/json'}
+        Data = {"sender": Node_Identifier, "data_hash": File_Hash, "log_file": File, "backup": Backup_File}
+        Response = requests.post(Host, data=json.dumps(Data), headers=Headers, verify=API_Data['verify_ssl']).text
+
+        if 'message' in json.loads(Response):
+            logging.info(f"{str(Date())} API Response: {json.loads(Response)['message']}")
+
+    else:
+        logging.fatal(f"{str(Date())} Failed to retrieve API key from database.")
+        sys.exit()
 
 def Make_File(Source_Directory, Target_Directory):
     Source_Directory = Source_Directory.replace("/", "-")
@@ -97,16 +107,16 @@ def Compress_Directory(File_List, Source_Directory, Backup_File):
 
 def Transfer_File(Source_Directory, Real_Source_Directory, File, API_Data, Backup_File):
 
-    try:
-        Full_File = Source_Directory + "/" + File
-        Real_Full_File = Real_Source_Directory + "/" + File
-        File_Hash = hs.fileChecksum(Full_File, "sha256")
-        Add_to_SIEMChain_Ledger(File_Hash, API_Data, File, Backup_File)
-        logging.info(f"{str(datetime.now())} Added {Real_Full_File} to chain.")
+    # try:
+    Full_File = Source_Directory + "/" + File
+    Real_Full_File = Real_Source_Directory + "/" + File
+    File_Hash = hs.fileChecksum(Full_File, "sha256")
+    Add_to_SIEMChain_Ledger(File_Hash, API_Data, File, Backup_File)
+    logging.info(f"{str(Date())} Added {Real_Full_File} to chain.")
 
-    except Exception as e:
-        logging.warning(f"{str(datetime.now())} Failed to add file checksum to chain.")
-        sys.exit(e)
+    # except Exception as e:
+    #     logging.fatal(f"{str(Date())} Failed to add file checksum to chain.")
+    #     sys.exit(e)
 
 def Threaded_Sync_File(Source_Directory, Real_Source_Directory, File, API_Data, Backup_File):
     thread = threading.Thread(target=Transfer_File, args=(Source_Directory, Real_Source_Directory, File, API_Data, Backup_File))
@@ -123,6 +133,20 @@ def Sync_Directory(Source_Directory, Real_Source_Directory, File, API_Data, Back
 if __name__ == '__main__':
 
     try:
+
+        try:
+            Logchain_Working_Directory = pathlib.Path(__file__).parent.absolute()
+
+            if str(Logchain_Working_Directory) != str(os.getcwd()):
+                print(f"[i] Logchain Backup has been called from outside the Logchain directory, changing the working directory to {str(Logchain_Working_Directory)}.")
+                os.chdir(Logchain_Working_Directory)
+
+                if str(Logchain_Working_Directory) != str(os.getcwd()):
+                    sys.exit(f'{str(Date())} Error setting the working directory.')
+
+        except:
+            sys.exit(f'{str(Date())} Error setting the working directory.')
+
         logging.basicConfig()
         logging.getLogger().setLevel(logging.INFO)
         Configuration_File = os.path.join(os.path.dirname(os.path.realpath('__file__')), 'config/agent/config.json')
@@ -134,7 +158,7 @@ if __name__ == '__main__':
         Results = Cursor.fetchone()
 
         if not Results:
-            logging.info(f"{str(datetime.now())} Node initialising for the first time.")
+            logging.info(f"{str(Date())} Node initialising for the first time.")
             Node_Identifier = str(uuid4()).replace('-', '')
             PSQL_Insert_Query ='INSERT INTO nodes (node_id, node_fqdn, node_type, created_at) VALUES (%s,%s,%s,%s)'
             Cursor.execute(PSQL_Insert_Query, (Node_Identifier, socket.getfqdn(), "Agent", datetime.now()))
@@ -146,7 +170,7 @@ if __name__ == '__main__':
         API_Data = Load_Logchain_API_Configuration()
 
         if Config_Data and API_Data:
-            logging.info(f"{str(datetime.now())} SIEM Chain Agent log backup initialising.")
+            logging.info(f"{str(Date())} SIEM Chain Agent log backup initialising.")
 
             for Directory in Config_Data['source_log_directories']:
                 Target_Directory = Config_Data['target_backup_directory']
@@ -165,11 +189,11 @@ if __name__ == '__main__':
                 Compress_Directory(os.listdir(Temp_Directory), Temp_Directory, Backup_File)
                 shutil.rmtree(Temp_Directory)
 
-            logging.info(f"{str(datetime.now())} SIEM Chain Agent log backup complete")
+            logging.info(f"{str(Date())} SIEM Chain Agent log backup complete")
 
         else:
-            sys.exit(f"{str(datetime.now())} Loading configuration failed.")
+            sys.exit(f"{str(Date())} Loading configuration failed.")
 
     except Exception as e:
-        logging.warning(f"{str(datetime.now())} {str(e)}")
+        logging.fatal(f"{str(Date())} {str(e)}")
         sys.exit()

@@ -5,13 +5,12 @@ def Load_Main_Database():
     try:
         with open('db.json') as JSON_File:
             Configuration_Data = json.load(JSON_File)
-
-            for DB_Info in Configuration_Data['postgresql']:
-                DB_Host = DB_Info['host']
-                DB_Port = str(int(DB_Info['port']))
-                DB_Username = DB_Info['user']
-                DB_Password = DB_Info['password']
-                DB_Database = DB_Info['database']
+            DB_Info = Configuration_Data['postgresql']
+            DB_Host = DB_Info['host']
+            DB_Port = str(int(DB_Info['port']))
+            DB_Username = DB_Info['user']
+            DB_Password = DB_Info['password']
+            DB_Database = DB_Info['database']
 
     except:
         sys.exit(str(datetime.datetime.now()) + " Failed to load configuration file.")

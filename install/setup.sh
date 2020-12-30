@@ -25,31 +25,41 @@ function install_dependencies() {
       zypper install -n -t pattern devel_basis
     fi
 
-    pip3 install -r requirements.txt
-    printf "\xE2\x9C\x94 Installation complete."
+    pip3 install -r requirements.txt &
+    printf "\xE2\x9C\x94 Installation complete.\n"
 }
 
 function install_database() {
-    printf "\xE2\x9C\x94 Installing database dependencies."
-    if [ -f /etc/redhat-release ]; then
-	    yum update
-      yum install -y postgresql postgresql-contrib
-    fi
+    printf "\xE2\x9C\x94 Installing database dependencies.\n"
+    service
+    whichpsql=`which psql`
 
-    if [ -f /etc/lsb-release ]; then
-      apt update
-      apt install -y postgresql postgresql-contrib
-    fi
+    if [ "$whichpsql" == "" ]; then
+        if [ -f /etc/redhat-release ]; then
+          yum update
+          yum install -y postgresql postgresql-contrib
+        fi
 
-    if [ -e /etc/os-release ]; then
-      . /etc/os-release
+        if [ -f /etc/lsb-release ]; then
+          apt update
+          apt install -y postgresql postgresql-contrib
+        fi
+
+        if [ -e /etc/os-release ]; then
+          . /etc/os-release
+        else
+          . /usr/lib/os-release
+        fi
+
+        if [[ "$ID_LIKE" = *"suse"* ]]; then
+          zypper update
+          zypper install -n postgresql postgresql-contrib
+        fi
     else
-      . /usr/lib/os-release
-    fi
-
-    if [[ "$ID_LIKE" = *"suse"* ]]; then
-      zypper update
-      zypper install -n postgresql postgresql-contrib
+        psqlstatus=`systemctl is-active postgresql.service`
+        if [ "$psqlstatus" == "inactive" ]; then
+          service postgresql start
+        fi
     fi
 
     printf "\xE2\x9C\x94 Installation complete."
@@ -60,23 +70,22 @@ function install_database() {
     sudo -u postgres psql -c "CREATE USER $USER WITH ENCRYPTED PASSWORD '$PASSWD';"
     sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $DATABASE TO $USER;"
     echo "{" > db.json
-    echo "    \"postgresql\": [" >> db.json
-    echo "        {" >> db.json
-    echo "            \"host\": \"127.0.0.1\"," >> db.json
-    echo "            \"port\": 5432," >> db.json
-    echo "            \"database\": \"$DATABASE\"," >> db.json
-    echo "            \"user\": \"$USER\"," >> db.json
-    echo "            \"password\": \"$PASSWD\"" >> db.json
-    echo "        }" >> db.json
-    echo "    ]" >> db.json
+    echo "    \"postgresql\": {" >> db.json
+    echo "        \"host\": \"127.0.0.1\"," >> db.json
+    echo "        \"port\": 5432," >> db.json
+    echo "        \"database\": \"$DATABASE\"," >> db.json
+    echo "        \"user\": \"$USER\"," >> db.json
+    echo "        \"password\": \"$PASSWD\"" >> db.json
+    echo "    }" >> db.json
     echo "}" >> db.json
-    printf "\xE2\x9C\x94 Database Details:"
+    python3 Add_DB_JSON_to_Resources.py
+    printf "\xE2\x9C\x94 Database Details:\n"
     echo $DATABASE
     echo $USER
     echo $PASSWD
-    printf "\xE2\x9C\x94 Database setup complete."
+    printf "\xE2\x9C\x94 Database setup complete.\n"
     python3 Create_Tables.py
-    printf "\xE2\x9C\x94 Logchain tables created."
+    printf "\xE2\x9C\x94 Logchain tables created.\n"
 }
 
 PS3='Please select what you would like to install: '
@@ -107,7 +116,9 @@ do
             read -p "Please enter the direcory where you wish to store the backups. " target_directory
 
             JSON_Locations=`python3 -c 'import json, sys; print(json.dumps([v for v in sys.argv[1:]]))' $locations`
-            mkdir ../lib/config
+            if [ ! -d ../lib/config ]; then
+                mkdir ../lib/config
+            fi
             mkdir ../lib/config/agent
 
             Agent_Config_File="../lib/config/agent/config.json"
@@ -119,13 +130,15 @@ do
             echo "    \"api\": {" >> $Agent_Config_File
             echo "        \"host\": \"http://127.0.0.1\"," >> $Agent_Config_File
             echo "        \"port\": 8000," >> $Agent_Config_File
-            echo "        \"key\": \"\"" >> $Agent_Config_File
+            echo "        \"verify_false\": false" >> $Agent_Config_File
             echo "    }" >> $Agent_Config_File
             echo "}" >> $Agent_Config_File
             ;;
         "Ledger")
             Random_String=`head /dev/urandom | tr -dc A-Za-z0-9 | head -c 64 ; echo ''`
-            mkdir ../lib/config
+            if [ ! -d ../lib/config ]; then
+                mkdir ../lib/config
+            fi
             mkdir ../lib/config/ledger
             API_Config_File="../lib/config/ledger/config.json"
             echo "{" > $API_Config_File
@@ -146,7 +159,7 @@ do
             install_database
             ;;
         "Quit")
-            printf "\xE2\x9C\x94 Quitting."
+            printf "\xE2\x9C\x94 Quitting.\n"
             break
             ;;
         *) break;;
