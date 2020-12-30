@@ -103,7 +103,6 @@ def Check_Backup(Tar_File):
     API_Data = Load_Logchain_API_Configuration()
 
     if Tar_File.endswith('.tar.gz'):
-        print(Tar_File)
         Temp_Directory = '/tmp/Logchain/verify'
 
         if os.path.exists(Temp_Directory):
@@ -162,7 +161,6 @@ if __name__ == '__main__':
 
                     for File in os.listdir(Config_Data['target_backup_directory']):
                         Complete_File = os.path.join(Config_Data['target_backup_directory'], File)
-                        print(Complete_File)
                         Check_Backup(Complete_File)
                         time.sleep(2)
 
