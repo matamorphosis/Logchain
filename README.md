@@ -2,7 +2,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)  
 
 <p align="center">
-  <img width="150" height="150" src="/lib/Logchain.png">
+  <img width="300" height="300" src="/lib/Logchain.png">
 </p>
 
 Logchain is a log backup tool that uses distributed ledger technology (DLT, also commonly known as blockchain) for integrity purposes. This solution is compiled of three programs:
