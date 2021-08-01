@@ -6,12 +6,12 @@ try:
         Configuration_Data = json.load(JSON_File)
         JSON_File.close()
 
-    Lib_Location = "../lib/config"
+    App_Location = "../app/config"
 
-    for item in os.listdir(Lib_Location):
+    for item in os.listdir(App_Location):
 
         if item in ['agent', 'ledger']:
-            Combined_Path = os.path.join(Lib_Location, item)
+            Combined_Path = os.path.join(App_Location, item)
 
             if os.path.isdir(Combined_Path):
                 Config_File = os.path.join(Combined_Path, "config.json")

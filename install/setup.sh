@@ -116,12 +116,12 @@ do
             read -p "Please enter the direcory where you wish to store the backups. " target_directory
 
             JSON_Locations=`python3 -c 'import json, sys; print(json.dumps([v for v in sys.argv[1:]]))' $locations`
-            if [ ! -d ../lib/config ]; then
-                mkdir ../lib/config
+            if [ ! -d ../app/config ]; then
+                mkdir ../app/config
             fi
-            mkdir ../lib/config/agent
+            mkdir ../app/config/agent
 
-            Agent_Config_File="../lib/config/agent/config.json"
+            Agent_Config_File="../app/config/agent/config.json"
             echo "{" > $Agent_Config_File
             echo "    \"agent\": {" >> $Agent_Config_File
             echo "        \"source_log_directories\": $JSON_Locations," >> $Agent_Config_File
@@ -130,17 +130,17 @@ do
             echo "    \"api\": {" >> $Agent_Config_File
             echo "        \"host\": \"http://127.0.0.1\"," >> $Agent_Config_File
             echo "        \"port\": 8000," >> $Agent_Config_File
-            echo "        \"verify_false\": false" >> $Agent_Config_File
+            echo "        \"verify_ssl\": false" >> $Agent_Config_File
             echo "    }" >> $Agent_Config_File
             echo "}" >> $Agent_Config_File
             ;;
         "Ledger")
             Random_String=`head /dev/urandom | tr -dc A-Za-z0-9 | head -c 64 ; echo ''`
-            if [ ! -d ../lib/config ]; then
-                mkdir ../lib/config
+            if [ ! -d ../app/config ]; then
+                mkdir ../app/config
             fi
-            mkdir ../lib/config/ledger
-            API_Config_File="../lib/config/ledger/config.json"
+            mkdir ../app/config/ledger
+            API_Config_File="../app/config/ledger/config.json"
             echo "{" > $API_Config_File
             echo "    \"web-app\": {" >> $API_Config_File
             echo "        \"debug\": false," >> $API_Config_File
